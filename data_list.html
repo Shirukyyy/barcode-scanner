@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>在庫データ登録</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 20px;
+            background-color: #f1f5f9;
+        }
+
+        h1 {
+            color: #1e3a8a;
+            font-size: 4.0em;
+        }
+
+        input, button {
+            padding: 10px;
+            margin: 10px;
+            font-size: 1.2em;
+            
+            
+            
+        }
+
+        table {
+            margin-top: 20px;
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #fff;
+            font-size: 1.5em;
+        }
+
+        th, td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #e2e8f0;
+        }
+
+        .corner-buttons {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: row;
+            gap: 12px;
+            z-index: 999;
+        }
+
+        .circle-button {
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            border: none;
+            color: white;
+            font-size: 1.5em;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            transition: background-color 0.3s ease;
+        }
+
+        .circle-button.green {
+            background-color: #23ba88;
+        }
+        .circle-button.green:hover {
+            background-color: #059669;
+        }
+
+        .circle-button.red {
+            background-color: #bc3535;
+        }
+        .circle-button.red:hover {
+            background-color: #dc2626;
+        }
+        </style>
+</head>
+<body>
+
+<h1>在庫データ登録</h1>
+
+<input type="text" id="barcode" placeholder="商品番号">
+<input type="text" id="name" placeholder="商品名">
+<input type="number" id="stock" placeholder="在庫数">
+<button onclick="addItem()" id="addBtn">登録</button>
+
+<table>
+    <thead>
+        <tr>
+            <th>商品番号</th>
+            <th>商品名</th>
+            <th>在庫数</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody id="stockTableBody">
+    </tbody>
+</table>
+
+<div style="margin-top: 40px; text-align: center;">
+    <button onclick="location.href='scanner_test.html'"
+        style="padding: 12px 24px; font-size: 1.8em; border: none; border-radius: 8px;
+               cursor: pointer; background-color: #3b82f6; color: white;">
+        🔄 スキャン画面に戻る
+    </button>
+</div>
+
+
+<div class="corner-buttons">
+    <button onclick="location.href='matched.html'" class="circle-button green">
+        ✅
+    </button>
+    <button onclick="location.href='unmatched.html'" class="circle-button red">
+        ❌
+    </button>
+</div>
+
+<div style="position: fixed; bottom: 20px; right: 20px; z-index: 999;">
+    <button onclick="confirmDeleteAll()" style="
+        padding: 14px 24px;
+        font-size: 3.5em;
+        background-color: #dc2626;
+        color: white;
+        border: none;
+        border-radius: 50px;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+        🗑️ 全削除
+    </button>
+</div>
+
+
+
+
+
+
+<script>
+    // 初期読み込み
+    window.onload = () => {
+        loadData();
+    };
+
+    function addItem() {
+        const barcode = document.getElementById('barcode').value;
+        const name = document.getElementById('name').value;
+        const stock = document.getElementById('stock').value;
+
+        if (!barcode || !name || !stock) {
+            alert("すべての項目を入力してください");
+            return;
+        }
+
+        const item = { barcode, name, stock: parseInt(stock) };
+
+        let data = JSON.parse(localStorage.getItem('stockData')) || [];
+        data.push(item);
+        localStorage.setItem('stockData', JSON.stringify(data));
+
+        document.getElementById('barcode').value = "";
+        document.getElementById('name').value = "";
+        document.getElementById('stock').value = "";
+
+        loadData();
+    }
+
+    function loadData() {
+    const tbody = document.getElementById('stockTableBody');
+    tbody.innerHTML = "";
+    const data = JSON.parse(localStorage.getItem('stockData')) || [];
+
+    data.forEach((item, index) => {
+        const row = document.createElement('tr');
+
+        row.innerHTML = `
+            <td>${item.barcode}</td>
+            <td>${item.name}</td>
+            <td>${item.stock}</td>
+            <td><button onclick="deleteItem(${index})" style="color: white; background-color: #ef4444; border: none; border-radius: 6px; padding: 5px 10px; cursor: pointer;">削除</button></td>
+        `;
+
+        tbody.appendChild(row);
+    });
+}
+
+function deleteItem(index) {
+    let data = JSON.parse(localStorage.getItem('stockData')) || [];
+    data.splice(index, 1); // 該当データを削除
+    localStorage.setItem('stockData', JSON.stringify(data));
+    loadData(); // 表を更新
+}
+
+
+document.getElementById("barcode").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") {
+        e.preventDefault();
+        document.getElementById("name").focus();
+    }
+});
+
+document.getElementById("name").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") {
+        e.preventDefault();
+        document.getElementById("stock").focus();
+    }
+});
+
+document.getElementById("stock").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") {
+        e.preventDefault();
+        document.getElementById("addBtn").focus();  // 登録ボタンにフォーカスを移動
+    }
+});
+
+document.getElementById("addBtn").addEventListener("keydown", function(e) {
+    if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        addItem();  // 登録実行
+        document.getElementById("barcode").focus(); // 入力を最初に戻す
+    }
+});
+
+
+function confirmDeleteAll() {
+    const result = confirm("⚠️ 本当にすべての在庫データ・確認済みデータ・未確認データを削除しますか？");
+    if (result) {
+        localStorage.removeItem('stockData');    // 在庫データ
+        localStorage.removeItem('matchedData');  // 確認済みデータ
+        localStorage.removeItem('unmatchedData'); // 未確認データ
+        alert("すべてのデータを削除しました");
+        location.reload(); // 表を更新
+    }
+}
+
+</script>
+
+</body>
+</html>
