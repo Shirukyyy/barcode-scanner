@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>バーコードスキャナー</title>
+  <script src="https://unpkg.com/@zxing/browser@latest"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <style>
+    body {
+      background-color: #f8fafc;
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    header {
+      background-color: #4f46e5;
+      color: white;
+      width: 100%;
+      text-align: center;
+      padding: 30px 0;
+      font-size: 2.5em;
+      font-weight: bold;
+    }
+
+    .camera-area {
+      background-color: #e5e7eb;
+      border-radius: 12px;
+      width: 85%;
+      max-width: 932px;
+      height: 1050px;
+      margin-top: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .scan-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .overlay {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.4);
+    }
+
+    .overlay.top {
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 40%;
+    }
+
+    .overlay.bottom {
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 40%;
+    }
+
+    .overlay.left {
+      top: 40%;
+      left: 0;
+      width: 20%;
+      height: 20%;
+    }
+
+    .overlay.right {
+      top: 40%;
+      right: 0;
+      width: 20%;
+      height: 20%;
+    }
+
+    .corner {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      border: 5px solid white;
+    }
+
+    .corner.top-left {
+      top: 40%;
+      left: 20%;
+      border-right: none;
+      border-bottom: none;
+    }
+
+    .corner.top-right {
+      top: 40%;
+      right: 20%;
+      border-left: none;
+      border-bottom: none;
+    }
+
+    .corner.bottom-left {
+      bottom: 40%;
+      left: 20%;
+      border-right: none;
+      border-top: none;
+    }
+
+    .corner.bottom-right {
+      bottom: 40%;
+      right: 20%;
+      border-left: none;
+      border-top: none;
+    }
+
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      gap: 15px;
+    }
+
+    button {
+      padding: 12px 24px;
+      font-size: 2.0em;
+      height: 120px;
+      width: 350px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      color: white;
+      background-color: #4f46e5;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      background-color: #4338ca;
+    }
+
+    .result-box {
+      margin-top: 30px;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      width: 90%;
+      max-width: 600px;
+      text-align: center;
+    }
+
+    .result-box h2 {
+      margin-bottom: 10px;
+      color: #333;
+    }
+
+    .result-code {
+      font-size: 2.0em;
+      color: #16a34a;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+  <header>バーコードスキャナー</header>
+
+  <div class="camera-area">
+    <video id="camera" autoplay playsinline></video>
+    <div class="scan-overlay">
+      <div class="overlay top"></div>
+      <div class="overlay bottom"></div>
+      <div class="overlay left"></div>
+      <div class="overlay right"></div>
+
+      <div class="corner top-left"></div>
+      <div class="corner top-right"></div>
+      <div class="corner bottom-left"></div>
+      <div class="corner bottom-right"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="startButton">スキャン開始</button>
+    <button id="stopButton" style="background-color: #ef4444;">スキャン停止</button>
+  </div>
+
+  <p id="scanStatus" style="margin-bottom: 0px; color: #2563eb; font-weight: bold; font-size: 30px;">
+    スキャンはまだ開始されていません
+  </p>
+
+  <div class="result-box">
+    <h2>読み取ったコード</h2>
+    <p class="result-code">まだスキャンされていません</p>
+  </div>
+
+  <div style="margin-top: 40px;">
+    <button onclick="location.href='data_list.html'"
+      style="padding: 12px 24px; font-size: 2.0em; border: none; border-radius: 8px;
+               cursor: pointer; background-color: #10b981; color: white;">
+      📦 在庫データ管理ページへ
+    </button>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDGZkawJf2iUJe7j7GUkeOsngok93VLEks",
+      authDomain: "barcode-scanner-cdfcb.firebaseapp.com",
+      projectId: "barcode-scanner-cdfcb",
+      storageBucket: "barcode-scanner-cdfcb.firebasestorage.app",
+      messagingSenderId: "694590972031",
+      appId: "1:694590972031:web:20e4404574c007a7e09f4a"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+  </script>
+
+  <script>
+    const codeReader = new ZXingBrowser.BrowserMultiFormatReader();
+    const videoElem = document.getElementById("camera");
+    const scanStatus = document.getElementById("scanStatus");
+    const resultTextElem = document.querySelector(".result-code");
+
+    let currentControls = null;
+    let currentStream = null;
+    let mediaStream = null;
+
+    async function openCamera() {
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "environment",
+        advanced: [{ focusMode: "continuous" }]
+      }
+    });
+
+    videoElem.srcObject = mediaStream;
+
+    // 🔍 ズーム機能が使えるかチェック
+    const [track] = mediaStream.getVideoTracks();
+    const capabilities = track.getCapabilities();
+
+    if (capabilities.zoom) {
+      const settings = track.getSettings();
+      const constraints = track.getConstraints();
+
+      // 任意のズーム倍率（min と max の間で指定可能）
+      const desiredZoom = Math.min(capabilities.zoom.max, Math.max(capabilities.zoom.min, 2.0));
+
+      await track.applyConstraints({
+        advanced: [{ zoom: desiredZoom }]
+      });
+
+      console.log("ズーム倍率を設定しました:", desiredZoom);
+    } else {
+      console.warn("このデバイスではズーム機能がサポートされていません");
+    }
+
+  } catch (e) {
+    console.error("カメラの起動に失敗しました:", e);
+    scanStatus.textContent = "❌ カメラの起動に失敗しました";
+  }
+}
+
+    openCamera();
+
+    // ページ戻り時の初期化
+    window.addEventListener("pageshow", () => {
+      currentStream = null;
+      currentControls = null;
+      scanStatus.textContent = "スキャンはまだ開始されていません";
+      resultTextElem.textContent = "まだスキャンされていません";
+    });
+
+    document.getElementById("startButton").addEventListener("click", async () => {
+      if (currentStream) return;
+
+      try {
+        scanStatus.textContent = "スキャン中...";
+        currentControls = await codeReader.decodeFromVideoElement(videoElem, async (result, err) => {
+          if (result) {
+            const scannedCode = result.getText();
+            console.log("スキャンされたコード:", scannedCode);
+
+            try {
+              const querySnapshot = await db.collection("stockData")
+                .where("barcode", "==", scannedCode)
+                .get();
+
+              if (!querySnapshot.empty) {
+                const doc = querySnapshot.docs[0];
+                const item = doc.data();
+
+                const alreadyMatched = item.matched === true;
+
+                resultTextElem.textContent = `${item.name}（${item.barcode}）`;
+                scanStatus.textContent = alreadyMatched
+                  ? "🟡 すでにスキャン済みの商品です"
+                  : "✅ 新しい商品が確認されました！";
+
+                if (!alreadyMatched) {
+                  await doc.ref.update({ matched: true });
+                  currentControls.stop();
+                  currentControls = null;
+                  currentStream = null;
+                  scanStatus.textContent += "（スキャン停止中）";
+                }
+              } else {
+                resultTextElem.textContent = `❌ 未登録の商品: ${scannedCode}`;
+                scanStatus.textContent = "⚠️ 登録されていないバーコードです";
+              }
+            } catch (error) {
+              console.error("Firestore エラー:", error);
+              scanStatus.textContent = "🔥 Firestoreの読み込みに失敗しました";
+            }
+          }
+        });
+
+        currentStream = true;
+      } catch (err) {
+        console.error("スキャン開始に失敗:", err);
+        scanStatus.textContent = "❌ スキャンの開始に失敗しました";
+      }
+    });
+
+    document.getElementById("stopButton").addEventListener("click", () => {
+      if (currentControls) {
+        currentControls.stop();
+        currentControls = null;
+        currentStream = null;
+        scanStatus.textContent = "⏹ スキャンを停止しました";
+      }
+    });
+  </script>
+
+</body>
+</html>
